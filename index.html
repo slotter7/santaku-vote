@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>今夜の晩ごはん投票</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+  :root {
+    --tomato: #e2522f; --tomato-deep: #b93a1c; --egg: #f4c542; --leaf: #4f7a3a;
+    --paper: #fbf6ee; --card: #ffffff; --ink: #2b211a; --ink-soft: #6b5a4c; --line: #eadfce;
+    --radius-l: 22px; --radius-s: 12px;
+    --shadow: 0 1px 0 var(--line), 0 10px 24px -14px rgba(90, 50, 20, .35);
+    --ease: cubic-bezier(.16, 1, .3, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1d1813; --card: #2a221b; --ink: #f6ede2; --ink-soft: #c5b3a2; --line: #3d3227;
+      --shadow: 0 1px 0 var(--line), 0 10px 24px -14px rgba(0, 0, 0, .7);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100dvh; background: var(--paper); color: var(--ink);
+    font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 440px; margin: 0 auto; padding: 28px 16px calc(32px + env(safe-area-inset-bottom)); }
+  .eyebrow { margin: 0; color: var(--tomato); font-weight: 900; letter-spacing: .08em; font-size: .8rem; }
+  h1 { margin: 6px 0 22px; font-size: clamp(1.6rem, 1.2rem + 2vw, 2rem); line-height: 1.3; font-weight: 900; }
+  h2 { margin: 0 0 10px; font-size: .95rem; color: var(--ink-soft); font-weight: 700; }
+  section + section { margin-top: 26px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 999px; padding: 9px 16px; font: inherit; font-weight: 700; cursor: pointer;
+    transition: transform .15s var(--ease), background-color .15s;
+  }
+  .chip[aria-pressed="true"] { background: var(--leaf); border-color: var(--leaf); color: #fff; }
+  .chip:active { transform: scale(.96); }
+  input {
+    width: 100%; margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-s);
+    border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 16px;
+  }
+  .dishes { display: grid; gap: 12px; }
+  .dish {
+    position: relative; display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+    padding: 18px; border-radius: var(--radius-l); border: 2px solid transparent; background: var(--card);
+    box-shadow: var(--shadow); color: var(--ink); font: inherit; font-size: 1.2rem; font-weight: 900; cursor: pointer;
+    transition: transform .2s var(--ease), border-color .2s;
+  }
+  .dish:active { transform: scale(.98); }
+  .dish .num {
+    flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+    background: var(--egg); color: #3a2a00; font-size: 1rem;
+  }
+  .dish[aria-pressed="true"] { border-color: var(--tomato); }
+  .dish[aria-pressed="true"] .num { background: var(--tomato); color: #fff; }
+  .reply {
+    margin-top: 22px; padding: 18px; border-radius: var(--radius-l); background: var(--card);
+    box-shadow: var(--shadow); animation: rise .35s var(--ease);
+  }
+  .reply p { margin: 0 0 14px; font-weight: 700; }
+  .btn {
+    display: block; width: 100%; padding: 15px; border: 0; border-radius: 14px; font: inherit; font-weight: 900;
+    font-size: 1.05rem; text-align: center; text-decoration: none; cursor: pointer;
+  }
+  .btn-line { background: #06c755; color: #fff; }
+  .btn-main { background: var(--tomato); color: #fff; }
+  .btn-sub { margin-top: 10px; background: transparent; color: var(--ink-soft); border: 1.5px solid var(--line); }
+  .btn:focus-visible, .dish:focus-visible, .chip:focus-visible, input:focus-visible { outline: 3px solid var(--egg); outline-offset: 2px; }
+  .note { margin-top: 14px; color: var(--ink-soft); font-size: .85rem; line-height: 1.6; }
+  .hidden { display: none; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<main id="app">
+  <p class="eyebrow">3択ごはん</p>
+  <h1 id="title">読み込み中…</h1>
+  <noscript><p>このページを見るには JavaScript を有効にしてください。</p></noscript>
+</main>
+<script>
+(() => {
+  const DAY = /^\d{8}$/;
+  const DISH_ID = /^[A-Za-z0-9-]{1,40}$/;
+  const MAX_NAME = 20;
+  const NAME_KEY = "santaku-vote-name";
+  const APP_LINK = "santakugohan://vote";
+  const app = document.getElementById("app");
+  const title = document.getElementById("title");
+  const params = new URLSearchParams(location.hash.slice(1));
+
+  const el = (tag, props = {}, children = []) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  };
+  const cleanName = (s) => (s || "").replace(/[,~&=#\n\r]/g, "").trim().slice(0, MAX_NAME);
+  const storage = {
+    get() { try { return localStorage.getItem(NAME_KEY) || ""; } catch { return ""; } },
+    set(v) { try { localStorage.setItem(NAME_KEY, v); } catch { /* 保存できなくても投票はできる */ } },
+  };
+
+  const fail = (message) => {
+    title.textContent = "リンクを開けませんでした";
+    app.append(el("p", { className: "note", textContent: message }));
+  };
+
+  const parseInvite = () => {
+    const day = params.get("p") || "";
+    const dishes = (params.get("c") || "").split(",").map((item) => {
+      const [id, ...rest] = item.split("~");
+      return { id, name: rest.join("").trim() };
+    }).filter((d) => DISH_ID.test(d.id) && d.name);
+    const members = (params.get("m") || "").split(",").map(cleanName).filter(Boolean);
+    return DAY.test(day) && dishes.length ? { day, dishes, members } : null;
+  };
+
+  const replyURL = (day, dishID, name) =>
+    `${location.origin}${location.pathname}#r=1&p=${day}&d=${encodeURIComponent(dishID)}&n=${encodeURIComponent(name)}`;
+
+  const renderInvite = ({ day, dishes, members }) => {
+    title.textContent = "今夜の晩ごはん、どれがいい？";
+    let name = cleanName(storage.get());
+    let chosen = null;
+
+    const nameInput = el("input", {
+      type: "text", maxLength: MAX_NAME, placeholder: "名前（例：パパ）", value: name, autocomplete: "nickname",
+    });
+    const chips = members.map((m) => el("button", { type: "button", className: "chip", textContent: m }));
+    const syncChips = () => chips.forEach((c) => c.setAttribute("aria-pressed", String(c.textContent === name)));
+    chips.forEach((c) => c.addEventListener("click", () => {
+      name = c.textContent; nameInput.value = name; storage.set(name); syncChips(); renderReply();
+    }));
+    nameInput.addEventListener("input", () => {
+      name = cleanName(nameInput.value); storage.set(name); syncChips(); renderReply();
+    });
+    syncChips();
+
+    const buttons = dishes.map((d, i) => {
+      const b = el("button", { type: "button", className: "dish" }, [
+        el("span", { className: "num", textContent: String(i + 1) }), el("span", { textContent: d.name }),
+      ]);
+      b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", () => {
+        chosen = d;
+        buttons.forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        if (navigator.vibrate) navigator.vibrate(10);
+        renderReply();
+      });
+      return b;
+    });
+
+    const reply = el("div", { className: "reply hidden" });
+    const renderReply = () => {
+      reply.replaceChildren();
+      if (!chosen) return;
+      reply.classList.remove("hidden");
+      if (!name) {
+        reply.append(el("p", { textContent: "上で名前を選ぶか、入力してください。" }));
+        return;
+      }
+      const text = `${name}：${chosen.name}がいい！\n${replyURL(day, chosen.id, name)}`;
+      const copy = el("button", { type: "button", className: "btn btn-sub", textContent: "文章をコピーする" });
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(text); copy.textContent = "コピーしました"; }
+        catch { copy.textContent = "コピーできませんでした"; }
+      });
+      reply.append(
+        el("p", { textContent: `「${chosen.name}」で返信します` }),
+        el("a", { className: "btn btn-line", href: `https://line.me/R/msg/text/?${encodeURIComponent(text)}`, textContent: "LINEで返信する" }),
+        copy,
+      );
+      reply.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+
+    app.append(
+      el("section", {}, [el("h2", { textContent: "だれが投票する？" }), el("div", { className: "chips" }, chips), nameInput]),
+      el("section", {}, [el("h2", { textContent: "食べたいものを1つ" }), el("div", { className: "dishes" }, buttons)]),
+      reply,
+      el("p", { className: "note", textContent: "アプリは要りません。選んだ内容はこのページのサーバーには送られず、あなたが返信したトークにだけ残ります。" }),
+    );
+  };
+
+  const renderReplyLink = () => {
+    const day = params.get("p") || "";
+    const dishID = params.get("d") || "";
+    if (!DAY.test(day) || !DISH_ID.test(dishID)) return fail("リンクが途中で切れているかもしれません。");
+    const name = cleanName(params.get("n"));
+    title.textContent = `${name || "家族"}さんの票が届きました`;
+    const href = `${APP_LINK}?p=${day}&d=${encodeURIComponent(dishID)}&n=${encodeURIComponent(name)}`;
+    app.append(
+      el("a", { className: "btn btn-main", href, textContent: "3択ごはんで票を入れる" }),
+      el("p", { className: "note", textContent: "献立を決める人のiPhoneで開くと、アプリに票が入ります。" }),
+    );
+  };
+
+  if (params.get("r") === "1") return renderReplyLink();
+  const invite = parseInvite();
+  return invite ? renderInvite(invite) : fail("届いたリンクを、もう一度そのまま開いてください。");
+})();
+</script>
+</body>
+</html>
